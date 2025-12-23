@@ -2,9 +2,10 @@ import { Router } from 'express';
 import { Request, Response } from 'express';
 import { z } from 'zod';
 import { validate } from '../../middleware/validate';
+import { authenticate } from '../../middleware/auth';
 import { asyncHandler } from '../../middleware/errorHandler';
 import { sendSuccess, sendError } from '../../utils/response';
-import { hashPassword, comparePassword, generateAccessToken, generateRefreshToken, generateSMSCode, getSMSCodeExpiry } from '../../utils/auth';
+import { hashPassword, comparePassword, generateAccessToken, generateRefreshToken, generateSMSCode, getSMSCodeExpiry, verifyRefreshToken } from '../../utils/auth';
 import prisma from '../../config/database';
 import { createAuditLog } from '../../utils/audit';
 import { sendVerificationSMS } from '../../utils/sms';
@@ -333,7 +334,13 @@ router.post(
         return sendError(res, 'Tenant not found', 404);
       }
 
-      const newAccessToken = generateAccessToken(tenant.id, 'tenant', tenant.mandatorId);
+      const newPayload = {
+        userId: tenant.id,
+        userType: 'tenant' as const,
+        mandatorId: tenant.mandatorId,
+        email: tenant.email,
+      };
+      const newAccessToken = generateAccessToken(newPayload);
 
       sendSuccess(res, { accessToken: newAccessToken });
     } catch (error) {
@@ -380,17 +387,18 @@ router.post(
       return sendError(res, 'Tenant already verified', 400);
     }
 
-    const { code, expiresAt } = generateSMSCode();
+    const smsCode = generateSMSCode();
+    const smsCodeExpiry = getSMSCodeExpiry();
 
     await prisma.tenant.update({
       where: { id: tenant.id },
       data: {
-        smsCode: code,
-        smsCodeExpiresAt: expiresAt,
+        smsCode,
+        smsCodeExpiry,
       },
     });
 
-    await sendVerificationSMS(tenant.phone, code);
+    await sendVerificationSMS(tenant.phone, smsCode);
 
     sendSuccess(res, { message: 'SMS code resent successfully' });
   })

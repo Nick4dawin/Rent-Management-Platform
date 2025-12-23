@@ -57,7 +57,7 @@ const addReadingSchema = z.object({
  *                 enum: [WATER_HOT, WATER_COLD, HEAT, ELECTRICITY, GAS]
  *               serialNumber:
  *                 type: string
- *              description:
+ *               description:
  *                 type: string
  *     responses:
  *       201:

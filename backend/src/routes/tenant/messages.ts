@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { Request, Response } from 'express';
 import { authenticate, authorize, enforceDataIsolation } from '../../middleware/auth';
 import { asyncHandler } from '../../middleware/errorHandler';
-import { sendSuccess, sendPaginated } from '../../utils/response';
+import { sendSuccess, sendPaginated, sendError } from '../../utils/response';
 import prisma from '../../config/database';
 
 const router = Router();
@@ -63,7 +63,8 @@ router.get(
  *       - BearerAuth: []
  *     parameters:
  *       - in: path
- *         name: id required: true
+ *         name: id
+ *         required: true
  *         schema:
  *           type: string
  *     responses:
@@ -114,10 +115,7 @@ router.get(
     const message = await prisma.message.findFirst({
       where: {
         id: req.params.id,
-        OR: [
-          { recipientId: tenantId },
-          { recipientType: 'ALL' },
-        ],
+        tenantId: tenantId,
       },
       include: {
         mandator: {

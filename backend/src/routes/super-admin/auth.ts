@@ -4,7 +4,7 @@ import { z } from 'zod';
 import { validate } from '../../middleware/validate';
 import { asyncHandler } from '../../middleware/errorHandler';
 import { sendSuccess, sendError } from '../../utils/response';
-import { hashPassword, comparePassword, generateAccessToken, generateRefreshToken } from '../../utils/auth';
+import { hashPassword, comparePassword, generateAccessToken, generateRefreshToken, verifyRefreshToken } from '../../utils/auth';
 import prisma from '../../config/database';
 import { createAuditLog } from '../../utils/audit';
 
@@ -95,6 +95,7 @@ router.post(
 
     // Log audit
     await createAuditLog({
+      mandatorId: undefined,
       userId: superAdmin.id,
       userType: 'super-admin',
       action: 'LOGIN',
@@ -169,7 +170,7 @@ router.post(
     }
 
     try {
-      const decoded = verifyToken(refreshToken);
+      const decoded = verifyRefreshToken(refreshToken);
       const superAdmin = await prisma.superAdmin.findUnique({
         where: { id: decoded.userId },
       });
@@ -178,7 +179,12 @@ router.post(
         return sendError(res, 'Super admin not found', 404);
       }
 
-      const newAccessToken = generateAccessToken(superAdmin.id, 'super-admin');
+      const newPayload = {
+        userId: superAdmin.id,
+        userType: 'super-admin' as const,
+        email: superAdmin.email,
+      };
+      const newAccessToken = generateAccessToken(newPayload);
 
       sendSuccess(res, { accessToken: newAccessToken });
     } catch (error) {

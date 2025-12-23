@@ -29,7 +29,7 @@ const createMoveOutProtocolSchema = z.object({
 
 const updateMoveOutProtocolSchema = z.object({
   body: z.object({
-    protocol Date: z.string().optional(),
+    protocolDate: z.string().optional(),
     roomConditions: z.record(z.any()).optional(),
     meterReadings: z.record(z.any()).optional(),
     damages: z.record(z.any()).optional(),

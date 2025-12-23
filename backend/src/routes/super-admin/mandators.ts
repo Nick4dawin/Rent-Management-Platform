@@ -113,6 +113,7 @@ router.post(
     // Log audit
     if (req.user) {
       await createAuditLog({
+        mandatorId: undefined,
         userId: req.user.userId,
         userType: 'super-admin',
         action: 'CREATE_MANDATOR',
@@ -206,7 +207,7 @@ router.get(
  *         name: id
  *         required: true
  *         schema:
- *           type:string
+ *           type: string
  *     responses:
  *       200:
  *         description: Mandator details
@@ -278,6 +279,7 @@ router.patch(
 
     if (req.user) {
       await createAuditLog({
+        mandatorId: undefined,
         userId: req.user.userId,
         userType: 'super-admin',
         action: 'ACTIVATE_MANDATOR',
@@ -322,6 +324,7 @@ router.patch(
 
     if (req.user) {
       await createAuditLog({
+        mandatorId: undefined,
         userId: req.user.userId,
         userType: 'super-admin',
         action: 'DEACTIVATE_MANDATOR',

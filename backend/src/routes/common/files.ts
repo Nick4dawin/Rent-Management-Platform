@@ -2,12 +2,12 @@ import { Router } from 'express';
 import { Request, Response } from 'express';
 import multer from 'multer';
 import path from 'path';
-import { authenticate } from '../middleware/auth';
-import { asyncHandler } from '../middleware/errorHandler';
-import { sendSuccess, sendError } from '../utils/response';
-import prisma from '../config/database';
-import { createAuditLog } from '../utils/audit';
-import config from '../config';
+import { authenticate } from '../../middleware/auth';
+import { asyncHandler } from '../../middleware/errorHandler';
+import { sendSuccess, sendError } from '../../utils/response';
+import prisma from '../../config/database';
+import { createAuditLog } from '../../utils/audit';
+import { CONFIG } from '../../config';
 import fs from 'fs/promises';
 
 const router = Router();
@@ -15,7 +15,7 @@ const router = Router();
 // Configure multer for file uploads
 const storage = multer.diskStorage({
   destination: async (req, file, cb) => {
-    const uploadDir = config.upload.dir;
+    const uploadDir = CONFIG.UPLOAD_DIR;
     try {
       await fs.mkdir(uploadDir, { recursive: true });
       cb(null, uploadDir);
@@ -31,7 +31,7 @@ const storage = multer.diskStorage({
 
 const upload = multer({
   storage,
-  limits: { fileSize: config.upload.maxSize },
+  limits: { fileSize: CONFIG.UPLOAD_MAX_SIZE },
   fileFilter: (req, file, cb) => {
     // Allow common file types
     const allowedTypes = /jpeg|jpg|png|pdf|doc|docx|xls|xlsx/;
@@ -89,20 +89,19 @@ router.post(
     const file = await prisma.file.create({
       data: {
         mandatorId,
-        filename: req.file.filename,
+        fileName: req.file.filename,
         originalName: req.file.originalname,
         mimeType: req.file.mimetype,
         size: req.file.size,
         path: req.file.path,
-        entityType,
-        entityId,
+        uploadedBy: req.user!.userId,
       },
     });
 
     await createAuditLog({
       mandatorId,
       userId: req.user!.userId,
-      userType: req.user!.role as any,
+      userType: req.user!.userType,
       action: 'UPLOAD_FILE',
       entityType: 'File',
       entityId: file.id,
@@ -143,13 +142,9 @@ router.get(
     const mandatorId = req.user!.mandatorId!;
     const { entityType, entityId } = req.query;
 
-    const where: any = { mandatorId };
-    if (entityType) where.entityType = entityType;
-    if (entityId) where.entityId = entityId;
-
     const files = await prisma.file.findMany({
-      where,
-      orderBy: { createdAt: 'desc' },
+      where: { mandatorId },
+      orderBy: { uploadedAt: 'desc' },
     });
 
     sendSuccess(res, files);
@@ -274,7 +269,7 @@ router.delete(
     await createAuditLog({
       mandatorId,
       userId: req.user!.userId,
-      userType: req.user!.role as any,
+      userType: req.user!.userType,
       action: 'DELETE_FILE',
       entityType: 'File',
       entityId: req.params.id,
