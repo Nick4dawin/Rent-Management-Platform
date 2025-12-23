@@ -4,9 +4,10 @@ import { z } from 'zod';
 import { validate } from '../../middleware/validate';
 import { asyncHandler } from '../../middleware/errorHandler';
 import { sendSuccess, sendError } from '../../utils/response';
-import { comparePassword, generateAccessToken, generateRefreshToken } from '../../utils/auth';
+import { comparePassword, generateAccessToken, generateRefreshToken, verifyRefreshToken } from '../../utils/auth';
 import prisma from '../../config/database';
 import { createAuditLog } from '../../utils/audit';
+import logger from '../../config/logger';
 
 const router = Router();
 
@@ -47,7 +48,7 @@ router.post(
   asyncHandler(async (req: Request, res: Response) => {
     const { email, password } = req.body;
 
-    const mandator = await prisma.mandator.findUnique({
+    const mandator = await prisma.mandator.findFirst({
       where: { adminEmail: email },
     });
 
@@ -135,7 +136,13 @@ router.post(
         return sendError(res, 'Mandator not found or inactive', 404);
       }
 
-      const newAccessToken = generateAccessToken(mandator.id, 'mandator', mandator.id);
+      const newPayload = {
+        userId: mandator.id,
+        userType: 'mandator' as const,
+        mandatorId: mandator.id,
+        email: mandator.adminEmail,
+      };
+      const newAccessToken = generateAccessToken(newPayload);
 
       sendSuccess(res, { accessToken: newAccessToken });
     } catch (error) {
@@ -170,8 +177,8 @@ router.post(
   asyncHandler(async (req: Request, res: Response) => {
     const { email } = req.body;
 
-    const mandator = await prisma.mandator.findUnique({
-      where: { email },
+    const mandator = await prisma.mandator.findFirst({
+      where: { adminEmail: email },
     });
 
     if (!mandator) {
