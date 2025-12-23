@@ -1,0 +1,577 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================
+// SUPER ADMIN DOMAIN
+// ============================================
+
+model SuperAdmin {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  password  String
+  firstName String?
+  lastName  String?
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  auditLogs SystemAuditLog[]
+
+  @@map("super_admins")
+}
+
+model Mandator {
+  id               String   @id @default(uuid())
+  companyName      String
+  contactEmail     String   @unique
+  contactPhone     String?
+  address          String?
+  city             String?
+  postalCode       String?
+  country          String?  @default("Germany")
+  isActive         Boolean  @default(true)
+  contractStartDate DateTime?
+  contractEndDate   DateTime?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  // Admin user for this mandator
+  adminEmail       String
+  adminPassword    String
+  adminFirstName   String?
+  adminLastName    String?
+
+  // Relations
+  buildings        Building[]
+  tenants          Tenant[]
+  messages         Message[]
+  tasks            Task[]
+  auditLogs        AuditLog[]
+
+  @@map("mandators")
+}
+
+model SystemAuditLog {
+  id             String     @id @default(uuid())
+  superAdminId   String?
+  action         String
+  entityType     String
+  entityId       String?
+  details        String?    @db.Text
+  ipAddress      String?
+  userAgent      String?
+  timestamp      DateTime   @default(now())
+
+  superAdmin     SuperAdmin? @relation(fields: [superAdminId], references: [id])
+
+  @@map("system_audit_logs")
+}
+
+// ============================================
+// MANDATOR/BUILDING DOMAIN
+// ============================================
+
+model Building {
+  id           String    @id @default(uuid())
+  mandatorId   String
+  name         String
+  address      String
+  city         String
+  postalCode   String
+  yearBuilt    Int?
+  hasGasHeating Boolean  @default(false)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  mandator     Mandator  @relation(fields: [mandatorId], references: [id], onDelete: Cascade)
+  units        Unit[]
+  mainMeters   MainMeter[]
+
+  @@index([mandatorId])
+  @@map("buildings")
+}
+
+model Unit {
+  id             String   @id @default(uuid())
+  buildingId     String
+  mandatorId     String
+  unitNumber     String
+  floor          Int?
+  area           Float?
+  rooms          Int?
+  hasWlan        Boolean  @default(false)
+  hasElectricity Boolean  @default(false)
+  isOccupied     Boolean  @default(false)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  building       Building @relation(fields: [buildingId], references: [id], onDelete: Cascade)
+
+  leases         Lease[]
+  meters         Meter[]
+  sensors        Sensor[]
+  wlanCredentials WlanCredential?
+
+  @@index([buildingId])
+  @@index([mandatorId])
+  @@map("units")
+}
+
+model Meter {
+  id          String   @id @default(uuid())
+  unitId      String
+  mandatorId  String
+  type        MeterType
+  serialNumber String  @unique
+  manufacturer String?
+  installDate  DateTime?
+  protocol     String?  // wM-Bus, etc.
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  unit        Unit     @relation(fields: [unitId], references: [id], onDelete: Cascade)
+  readings    ConsumptionReading[]
+
+  @@index([unitId])
+  @@index([mandatorId])
+  @@map("meters")
+}
+
+enum MeterType {
+  WATER_HOT
+  WATER_COLD
+  HEAT
+  ELECTRICITY
+  GAS
+}
+
+model Sensor {
+  id           String     @id @default(uuid())
+  unitId       String
+  mandatorId   String
+  type         SensorType
+  serialNumber String     @unique
+  manufacturer String?
+  protocol     String?    // ZigBee, etc.
+  isActive     Boolean    @default(true)
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  unit         Unit       @relation(fields: [unitId], references: [id], onDelete: Cascade)
+  alarmEvents  AlarmEvent[]
+
+  @@index([unitId])
+  @@index([mandatorId])
+  @@map("sensors")
+}
+
+enum SensorType {
+  DOOR
+  WINDOW
+  THERMOSTAT
+  SMOKE_DETECTOR
+}
+
+model MainMeter {
+  id           String   @id @default(uuid())
+  buildingId   String
+  mandatorId   String
+  type         MeterType
+  serialNumber String   @unique
+  description  String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  building     Building @relation(fields: [buildingId], references: [id], onDelete: Cascade)
+  readings     MainMeterReading[]
+
+  @@index([buildingId])
+  @@index([mandatorId])
+  @@map("main_meters")
+}
+
+model MainMeterReading {
+  id           String   @id @default(uuid())
+  mainMeterId  String
+  reading      Float
+  readingDate  DateTime
+  notes        String?
+  createdAt    DateTime @default(now())
+
+  mainMeter    MainMeter @relation(fields: [mainMeterId], references: [id], onDelete: Cascade)
+
+  @@index([mainMeterId])
+  @@map("main_meter_readings")
+}
+
+// ============================================
+// TENANT DOMAIN
+// ============================================
+
+model Tenant {
+  id              String    @id @default(uuid())
+  mandatorId      String
+  email           String    @unique
+  password        String
+  firstName       String
+  lastName        String
+  phone           String
+  isVerified      Boolean   @default(false)
+  smsCode         String?
+  smsCodeExpiry   DateTime?
+  isActive        Boolean   @default(true)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  mandator        Mandator  @relation(fields: [mandatorId], references: [id], onDelete: Cascade)
+
+  leases          Lease[]
+  consents        Consent[]
+  messages        Message[]
+  taskCompletions TaskCompletion[]
+  alarmEvents     AlarmEvent[]
+
+  @@index([mandatorId])
+  @@map("tenants")
+}
+
+model Lease {
+  id                String    @id @default(uuid())
+  tenantId          String
+  unitId            String
+  mandatorId        String
+  startDate         DateTime
+  endDate           DateTime?
+  monthlyRent       Float
+  deposit           Float?
+  status            LeaseStatus @default(DRAFT)
+  landlordSignature String?
+  landlordSignedAt  DateTime?
+  tenantSignature   String?
+  tenantSignedAt    DateTime?
+  terminationDate   DateTime?
+  terminationNotice String?   @db.Text
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  tenant            Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  unit              Unit      @relation(fields: [unitId], references: [id], onDelete: Cascade)
+
+  moveInProtocol    MoveInProtocol?
+  moveOutProtocol   MoveOutProtocol?
+  finalBilling      FinalBilling?
+
+  @@index([tenantId])
+  @@index([unitId])
+  @@index([mandatorId])
+  @@map("leases")
+}
+
+enum LeaseStatus {
+  DRAFT
+  SIGNED_LANDLORD
+  SIGNED_BOTH
+  ACTIVE
+  TERMINATED
+  COMPLETED
+}
+
+model Consent {
+  id           String      @id @default(uuid())
+  tenantId     String
+  type         ConsentType
+  version      String
+  agreed       Boolean
+  agreedAt     DateTime    @default(now())
+  ipAddress    String?
+
+  tenant       Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@map("consents")
+}
+
+enum ConsentType {
+  TERMS_AND_CONDITIONS
+  PRIVACY_POLICY
+  DATA_PROCESSING
+  SMART_HOME
+}
+
+model MoveInProtocol {
+  id                String   @id @default(uuid())
+  leaseId           String   @unique
+  mandatorId        String
+  protocolDate      DateTime
+  roomConditions    String   @db.Text // JSON data
+  meterReadings     String   @db.Text // JSON data
+  notes             String?  @db.Text
+  landlordSignature String?
+  landlordSignedAt  DateTime?
+  tenantSignature   String?
+  tenantSignedAt    DateTime?
+  status            ProtocolStatus @default(DRAFT)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  lease             Lease    @relation(fields: [leaseId], references: [id], onDelete: Cascade)
+
+  @@index([leaseId])
+  @@index([mandatorId])
+  @@map("move_in_protocols")
+}
+
+model MoveOutProtocol {
+  id                String   @id @default(uuid())
+  leaseId           String   @unique
+  mandatorId        String
+  protocolDate      DateTime
+  roomConditions    String   @db.Text // JSON data
+  meterReadings     String   @db.Text // JSON data
+  damages           String?  @db.Text // JSON data
+  notes             String?  @db.Text
+  landlordSignature String?
+  landlordSignedAt  DateTime?
+  tenantSignature   String?
+  tenantSignedAt    DateTime?
+  status            ProtocolStatus @default(DRAFT)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  lease             Lease    @relation(fields: [leaseId], references: [id], onDelete: Cascade)
+
+  @@index([leaseId])
+  @@index([mandatorId])
+  @@map("move_out_protocols")
+}
+
+enum ProtocolStatus {
+  DRAFT
+  SIGNED_LANDLORD
+  SIGNED_BOTH
+  COMPLETED
+}
+
+model WlanCredential {
+  id          String    @id @default(uuid())
+  unitId      String    @unique
+  mandatorId  String
+  ssid        String
+  password    String
+  validFrom   DateTime  @default(now())
+  validUntil  DateTime?
+  isActive    Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  unit        Unit      @relation(fields: [unitId], references: [id], onDelete: Cascade)
+
+  @@index([unitId])
+  @@index([mandatorId])
+  @@map("wlan_credentials")
+}
+
+// ============================================
+// CONSUMPTION DATA
+// ============================================
+
+model ConsumptionReading {
+  id          String   @id @default(uuid())
+  meterId     String
+  value       Float
+  readingDate DateTime
+  source      String?  // gateway, manual, estimated
+  createdAt   DateTime @default(now())
+
+  meter       Meter    @relation(fields: [meterId], references: [id], onDelete: Cascade)
+
+  @@index([meterId])
+  @@index([readingDate])
+  @@map("consumption_readings")
+}
+
+// ============================================
+// COMMUNICATION
+// ============================================
+
+model Message {
+  id             String      @id @default(uuid())
+  mandatorId     String
+  tenantId       String?
+  subject        String
+  body           String      @db.Text
+  sentAt         DateTime    @default(now())
+  isRead         Boolean     @default(false)
+  readAt         DateTime?
+  notificationType String?   // SMS, EMAIL, WHATSAPP
+  notificationSent Boolean   @default(false)
+
+  mandator       Mandator    @relation(fields: [mandatorId], references: [id], onDelete: Cascade)
+  tenant         Tenant?     @relation(fields: [tenantId], references: [id], onDelete: SetNull)
+
+  @@index([mandatorId])
+  @@index([tenantId])
+  @@map("messages")
+}
+
+// ============================================
+// TASKS & CALENDAR
+// ============================================
+
+model Task {
+  id            String    @id @default(uuid())
+  mandatorId    String
+  unitId        String?
+  tenantId      String?
+  title         String
+  description   String?   @db.Text
+  dueDate       DateTime?
+  isRecurring   Boolean   @default(false)
+  recurrence    String?   // DAILY, WEEKLY, MONTHLY, YEARLY
+  priority      TaskPriority @default(MEDIUM)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  mandator      Mandator  @relation(fields: [mandatorId], references: [id], onDelete: Cascade)
+
+  completions   TaskCompletion[]
+
+  @@index([mandatorId])
+  @@map("tasks")
+}
+
+enum TaskPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+model TaskCompletion {
+  id           String    @id @default(uuid())
+  taskId       String
+  tenantId     String
+  completedAt  DateTime  @default(now())
+  notes        String?   @db.Text
+  verified     Boolean   @default(false)
+  verifiedAt   DateTime?
+
+  task         Task      @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  tenant       Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([taskId])
+  @@index([tenantId])
+  @@map("task_completions")
+}
+
+// ============================================
+// ALARM SYSTEM
+// ============================================
+
+model AlarmEvent {
+  id          String      @id @default(uuid())
+  sensorId    String
+  tenantId    String?
+  eventType   AlarmEventType
+  timestamp   DateTime    @default(now())
+  resolved    Boolean     @default(false)
+  resolvedAt  DateTime?
+  notes       String?     @db.Text
+
+  sensor      Sensor      @relation(fields: [sensorId], references: [id], onDelete: Cascade)
+  tenant      Tenant?     @relation(fields: [tenantId], references: [id], onDelete: SetNull)
+
+  @@index([sensorId])
+  @@index([tenantId])
+  @@index([timestamp])
+  @@map("alarm_events")
+}
+
+enum AlarmEventType {
+  ARMED
+  DISARMED
+  TRIGGERED
+  DOOR_OPEN
+  WINDOW_OPEN
+}
+
+// ============================================
+// BILLING
+// ============================================
+
+model FinalBilling {
+  id                String   @id @default(uuid())
+  leaseId           String   @unique
+  mandatorId        String
+  billingPeriodStart DateTime
+  billingPeriodEnd   DateTime
+  rentAmount        Float
+  utilitiesAmount   Float?
+  deductions        Float?
+  totalAmount       Float
+  details           String   @db.Text // JSON data with breakdown
+  isPaid            Boolean  @default(false)
+  paidAt            DateTime?
+  generatedAt       DateTime @default(now())
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  lease             Lease    @relation(fields: [leaseId], references: [id], onDelete: Cascade)
+
+  @@index([leaseId])
+  @@index([mandatorId])
+  @@map("final_billings")
+}
+
+// ============================================
+// FILE STORAGE
+// ============================================
+
+model File {
+  id           String   @id @default(uuid())
+  mandatorId   String?
+  fileName     String
+  originalName String
+  mimeType     String
+  size         Int
+  path         String
+  uploadedBy   String   // userId
+  uploadedAt   DateTime @default(now())
+
+  @@index([mandatorId])
+  @@map("files")
+}
+
+// ============================================
+// AUDIT LOG
+// ============================================
+
+model AuditLog {
+  id          String   @id @default(uuid())
+  mandatorId  String
+  userId      String
+  userType    String   // super-admin, mandator, tenant
+  action      String
+  entityType  String
+  entityId    String?
+  details     String?  @db.Text
+  ipAddress   String?
+  userAgent   String?
+  timestamp   DateTime @default(now())
+
+  mandator    Mandator @relation(fields: [mandatorId], references: [id], onDelete: Cascade)
+
+  @@index([mandatorId])
+  @@index([userId])
+  @@index([timestamp])
+  @@map("audit_logs")
+}

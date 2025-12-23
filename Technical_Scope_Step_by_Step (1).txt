@@ -1,0 +1,62 @@
+﻿Technical Specification - Intelligent, Multi-Tenant Property Management Software
+1. Objective and Overview The goal is to develop an intelligent, multi-tenant capable property management software for multi-family buildings. The software must digitally map the entire tenant lifecycle-from lease signing, move-in, operations, communication, and consumption tracking to move-out and final billing-in a legally compliant and transparent manner. Additionally, the system must support optional Smart Home functions (thermostats, door/window sensors, alarm features). The Client intends to use this software for their own portfolio and offer it as a service/product (SaaS) to other property owners.
+2. Role Model and Multi-Tenancy The software must be multi-tenant capable (SaaS architecture). The following roles are required:
+* Super-Admin (Software Owner): Manages the SaaS-Tenants (Landlords/Property Owners).
+* Mandator-Admin (Landlord/Property Manager): Manages buildings, units, tenants, meters, and billing for their specific portfolio.
+* Tenant (Resident): Uses the Tenant Portal (Web/App) for communication, documents, billing, and Smart Home features.
+Mandates regarding Multi-Tenancy:
+* Strict Data Isolation: Data must be strictly separated between Mandator-Admins (Landlords).
+* Isolation: Each Landlord manages only their own objects.
+* Super-Admin Control: Can create/deactivate Landlords and manage their contract parameters.
+3. Technical Framework & Privacy
+* Hosting: Data center in Germany.
+* GDPR: Strict compliance with data protection laws.
+* Access: Secure access for developers.
+* Consent: All steps involving the Tenant (Resident) must include checkboxes for T&C (AGB) and Privacy Policy.
+o Final registration requires SMS-Code verification.
+o All consents (Data processing, Smart Home) must be logged with timestamps and versioning.
+4. Step-by-Step: Super-Admin Setup
+* 4.1 Create New Mandator (Landlord): Super-Admin creates a new client (Company data, contact info). Credentials are generated and sent to the Mandator-Admin.
+5. Step-by-Step: Mandator-Admin (Landlord) Setup
+* 5.1 Create Buildings & Units: Log in to Landlord-Frontend. Create buildings (Address, Year built). Create Units per building (Unit ID, Floor, Area, Rooms). Flag if Gas Heating is present (for main meter).
+* 5.2 Configure Meters & Sensors per Unit: Assign devices to units:
+o Water meters (hot/cold), Heat meters, Electricity meters.
+o Radiator Thermostats, Door/Window Sensors.
+o Protocols:
+* wM-Bus for meters (Data must be accessible via open interface).
+* ZigBee (or similar) for Smart Home devices.
+o System must map devices uniquely to units via Gateways.
+* 5.3 Main Meters: Create Main Meters for the building. Landlord enters readings annually for plausibility checks against sum of unit meters.
+* 5.4 Unit Options: Configure per unit:
+o WLAN provided? (Yes/No).
+o Electricity provided/billed by Landlord? (Yes/No).
+6. Step-by-Step: Tenant Lifecycle
+* 6.1 Lease Creation & Signature: Landlord generates lease from form data. Input: Tenant names, mobile numbers, email. Digital signature by both parties. System emails signed lease to Tenant.
+* 6.2 Registration (Onboarding): Triggered only after protocol (see logic in Simulation Doc). Tenant creates account, accepts T&C/Privacy, verifies via SMS Code. All logged.
+* 6.3 Move-In Protocol: Digital form on the handover day. Capture meter readings and room conditions. Digital signatures. PDF generation. Trigger: This grants App Access.
+* 6.4 WLAN Provisioning: Automated creation of WLAN credentials (linked to lease duration) upon protocol signature.
+* 6.5 Operations:
+o Consumption: Regular ingestion via wM-Bus gateways.
+o Communication: Landlord sends messages -> Tenant receives Notification (WhatsApp/SMS). Message history stored.
+* 6.6 Tasks & Calendar:
+o Landlord creates recurring tasks (e.g., Smoke Detector Check).
+o Tenant confirms execution.
+o Escalation: Auto-reminders if overdue. Notification to Landlord after X failed reminders.
+* 6.7 Alarm System: Tenant can arm/disarm door/window sensors. Alarm triggers immediate notification.
+* 6.8 Termination & Move-Out: Termination recorded. System calculates dates. Move-Out Protocol created and signed digitally.
+* 6.9 Final Billing: Generated after Move-Out Protocol. Landlord can enter details manually from his side for phase 1. 
+o Must be legally compliant (citing norms/paragraphs).
+o Transparent calculation path (Readings, Periods, Allocation Keys).
+o Plausibility check against Main Meters.
+o Deactivation of WLAN/App Access.
+7. Logging & History
+* Audit-proof logging of all actions (Logins, Contract changes, Consents, Alarms).
+* Archive of all documents and communications.
+8. Interface Requirements (Examples)
+* API for wM-Bus Gateways (Consumption Data). Phase 2: Heat, electricity, water and gas
+* API for ZigBee Gateways (Smart Home). Phase 3 - Going into the flat and collecting smart appliances data. 
+* API for WLAN Controller/Radius (Access Management).
+* API for SMS Provider (2FA/Notifications).
+* API for Messenger (WhatsApp Business) for notifications.
+9. Summary for Development This workflow represents a continuous chain from Mandator setup to the full Tenant Lifecycle. Implementation must ensure strict data isolation (Multi-Tenancy) and audit-proof traceability in both the Landlord and Tenant frontends.
+
