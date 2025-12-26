@@ -111,7 +111,7 @@ async function main() {
       status: 'ACTIVE',
     },
   });
-  console.log('Created Lease');
+  console.log('Created Lease for unit:', lease.unitId);
 
   // Update unit as occupied
   await prisma.unit.update({
